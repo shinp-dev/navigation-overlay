@@ -1,0 +1,66 @@
+plugins { id 'com.android.application' }
+
+// The upstream code and regional routing data are downloaded on the build PC, never on the phone.
+def upstreamVersion = 'v1.7.10'
+def cacheDir = rootProject.layout.projectDirectory.dir('.brouter-cache').asFile
+def upstream = new File(cacheDir, upstreamVersion)
+def generated = layout.buildDirectory.dir('generated/brouter')
+def modules = ['brouter-core','brouter-mapaccess','brouter-util','brouter-expressions','brouter-codec']
+def tiles = providers.gradleProperty('brouterTiles').orElse('E135_N35').get().split(',').collect { it.trim() }.unique()
+if (tiles.any { !(it ==~ /[EW]\d{1,3}_[NS]\d{1,2}/) }) throw new GradleException('Invalid brouterTiles')
+def fetchFile = { String address, File target ->
+    if (target.isFile() && target.length() > 0) return
+    target.parentFile.mkdirs()
+    File tmp = new File(target.parentFile,target.name+'.part')
+    try {
+        def conn = new URI(address).toURL().openConnection()
+        conn.connectTimeout=30000; conn.readTimeout=120000
+        conn.setRequestProperty('User-Agent','NavigationOverlay-build/1.0')
+        conn.inputStream.withCloseable { input -> tmp.withOutputStream { it << input } }
+        if(tmp.length()==0)throw new GradleException('Empty download: '+address)
+        java.nio.file.Files.move(tmp.toPath(),target.toPath(),java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    } finally { tmp.delete() }
+}
+
+tasks.register('prepareBRouter') {
+    inputs.property('version',upstreamVersion)
+    inputs.property('tiles',tiles.join(','))
+    outputs.dir(generated)
+    doLast {
+        if(!new File(upstream,'.git').isDirectory()) {
+            cacheDir.mkdirs()
+            project.exec { commandLine 'git','clone','--depth','1','--branch',upstreamVersion,'https://github.com/abrensch/brouter.git',upstream.absolutePath }
+        }
+        def out=generated.get().asFile
+        project.delete(out)
+        modules.each { mod ->
+            File src=new File(upstream,mod+'/src/main/java')
+            if(!src.isDirectory())throw new GradleException('Missing upstream module '+mod)
+            project.copy { from src; into new File(out,'java') }
+        }
+        project.copy {
+            from new File(upstream,'misc/profiles2')
+            include 'lookups.dat','hiking-mountain.brf','trekking.brf'
+            into new File(out,'assets/brouter/profiles2')
+        }
+        ['lookups.dat','hiking-mountain.brf','trekking.brf'].each { n ->
+            if(!new File(out,'assets/brouter/profiles2/'+n).isFile())throw new GradleException('Missing profile '+n)
+        }
+        project.copy { from new File(upstream,'LICENSE'); into new File(out,'assets/brouter') }
+        tiles.each { tile ->
+            File rd5=new File(cacheDir,'segments4/'+tile+'.rd5')
+            fetchFile('https://brouter.de/brouter/segments4/'+tile+'.rd5',rd5)
+            project.copy { from rd5; into new File(out,'assets/brouter/segments4') }
+        }
+    }
+}
+android {
+    namespace 'com.shinpstudio.navoverlay'
+    compileSdk 35
+    defaultConfig { applicationId 'com.shinpstudio.navoverlay'; minSdk 31; targetSdk 35; versionCode 2; versionName '0.2.0' }
+    sourceSets.main.java.srcDir(generated.map { it.dir('java') })
+    sourceSets.main.assets.srcDir(generated.map { it.dir('assets') })
+    androidResources { noCompress += 'rd5' }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+tasks.named('preBuild').configure { dependsOn(tasks.named('prepareBRouter')) }

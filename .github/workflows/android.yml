@@ -1,0 +1,27 @@
+name: Android debug build
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Install Android SDK packages
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Pure Java regression tests
+        run: |
+          mkdir -p /tmp/nav-test
+          javac --release 17 -d /tmp/nav-test app/src/main/java/com/shinpstudio/navoverlay/Route.java tests/RouteTest.java
+          java -cp /tmp/nav-test com.shinpstudio.navoverlay.RouteTest
+      - name: Build debug APK
+        run: gradle --no-daemon :app:assembleDebug :app:lintDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: navigation-overlay-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
