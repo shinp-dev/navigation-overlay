@@ -77,8 +77,19 @@ public class MainActivity extends Activity {
         root.addView(text("移動方法",15));mode=spinner(new String[]{"徒歩","自転車"});root.addView(mode);mode.setSelection(prefs.getInt("mode",0));
         root.addView(text("文字サイズ",15));size=spinner(new String[]{"小","標準","大"});root.addView(size);size.setSelection(prefs.getInt("size",1));
         button(root,"ナビ開始",this::startNav);button(root,"ナビ終了（枠を消す）",()->stopService(new Intent(this,NavService.class)));button(root,"オーバーレイ権限設定",()->startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName()))));
+        button(root, "ヘルプ", this::showNavigationHelp);
         root.addView(text("経路データはビルド時に取得済み。初回の経路探索時に端末内に展開します。通信なしで利用できます。道路標識・実際の道路状況を優先してください。\n経路データ © OpenStreetMap contributors",13));
         Uri uri=getIntent().getData();if(uri!=null&&"geo".equals(uri.getScheme())){try{String s=uri.getSchemeSpecificPart();String base=s.split("\\?",2)[0];if(base.equals("0,0")&&s.contains("q=")){base=Uri.decode(s.substring(s.indexOf("q=")+2).split("&",2)[0]).split("\\(",2)[0];}Route.Point p=parse(base);coords.setText(p.lat()+", "+p.lon());name.setText("");}catch(Exception e){toast("座標付きgeoリンクのみ対応");}}
+    }
+
+    private void showNavigationHelp() {
+        new AlertDialog.Builder(this)
+            .setTitle("ナビのヘルプ")
+            .setMessage("「進む向き」の矢印は、BRouterが計算した経路の少し先を、スマホから見た向きで示します。\n\n"
+                + "たとえば目的地が正面にあっても、道がつながっておらず右から回り込む経路なら、矢印は右を示します。\n\n"
+                + "矢印の下には、次の曲がり方や距離を表示します。現地の標識や通行状況を優先してください。")
+            .setPositiveButton(android.R.string.ok, null)
+            .show();
     }
 
     private void watchInput(EditText field, Runnable changed) {
