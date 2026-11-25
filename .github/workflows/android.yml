@@ -17,7 +17,7 @@ jobs:
       - name: Pure Java regression tests
         run: |
           mkdir -p /tmp/nav-test
-          javac --release 17 -d /tmp/nav-test app/src/main/java/com/shinpstudio/navoverlay/Route.java tests/RouteTest.java
+          javac --release 17 -d /tmp/nav-test app/src/main/java/com/shinpstudio/navoverlay/Route.java app/src/main/java/com/shinpstudio/navoverlay/Heading.java tests/RouteTest.java
           java -cp /tmp/nav-test com.shinpstudio.navoverlay.RouteTest
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug :app:lintDebug

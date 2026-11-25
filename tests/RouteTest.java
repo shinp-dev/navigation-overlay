@@ -20,6 +20,20 @@ public class RouteTest {
  reject("segment not found");reject("<!DOCTYPE gpx SYSTEM 'file:///etc/passwd'><gpx/>");reject("<gpx><trk><trkseg><trkpt lat='35' lon='139'/></trkseg></trk></gpx>");
  try{new Route.Point(Double.NaN,139);throw new AssertionError();}catch(IllegalArgumentException ok){passed++;}
  Route loop=new Route(List.of(new Route.Point(35,139),new Route.Point(35.003,139),new Route.Point(35.003,139.001),new Route.Point(35,139)),List.of());check(loop.match(new Route.Point(35,139),0,true).along()<1,"loop start");check(loop.match(new Route.Point(35,139),loop.length()-15,false).along()>loop.length()-1,"loop finish");
+ check(Math.abs(r.bearingAhead(0))<0.01,"start points along the first segment");
+ check(Math.abs(r.bearingAhead(r.at(1)-5))<0.01,"lookahead stops at the turn");
+ check(Math.abs(r.bearingAhead(r.at(1))-90)<0.01,"heading follows the new segment after turning");
+ check(Double.isNaN(r.bearingAhead(r.length())),"no direction past the destination");
+ Route duplicateStart=new Route(List.of(new Route.Point(0,179.99998),new Route.Point(0,179.99998),new Route.Point(0,-179.999)),List.of());
+ check(Math.abs(duplicateStart.bearingAhead(0)-90)<0.01,"duplicates and antimeridian crossing");
+ check(Math.abs(Heading.magneticDegrees(new float[]{1,0,0,0,1,0,0,0,1}))<0.01,"screen level and north");
+ check(Math.abs(Heading.magneticDegrees(new float[]{1,0,0,0,0,-1,0,1,0}))<0.01,"screen upright and north");
+ check(Math.abs(Heading.magneticDegrees(new float[]{0,0,-1,-1,0,0,0,1,0})-90)<0.01,"screen upright and east");
+ check(Double.isNaN(Heading.magneticDegrees(new float[]{0,0,-1,0,1,0,1,0,0})),"screen-right axis is vertical");
+ check(Heading.sector(0,359,-1)==0,"heading wraps around north");
+ check(Heading.direction(Heading.sector(0,90,-1)).equals("← 左"),"turn the phone right and the route moves left");
+ check(Heading.direction(Heading.sector(0,180,-1)).equals("↓ 後ろ"),"route behind the phone");
+ check(Heading.sector(25,0,0)==0&&Heading.sector(30,0,0)==1,"compass boundary hysteresis");
  System.out.println("PASS: "+passed+" assertions");
  }
 }

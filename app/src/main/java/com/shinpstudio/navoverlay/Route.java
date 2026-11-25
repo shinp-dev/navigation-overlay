@@ -41,6 +41,43 @@ public final class Route {
         if(best==null)return match(p,previous,true);return best;
     }
     public Turn next(double progress){for(Turn t:turns)if(t.code.equals("DEST")||at(t.index)>progress-8)return t;return turns.get(turns.size()-1);}
+
+    double bearingAhead(double progress) {
+        double start = Math.max(0, Math.min(progress, length()));
+        double end = Math.min(start + 12, length());
+        for (Turn turn : turns) {
+            double atTurn = at(turn.index());
+            if (atTurn >= end) break;
+            if (atTurn > start + 1 && !turn.code().equals("C")) {
+                end = atTurn;
+                break;
+            }
+        }
+        if (end - start < 1) return Double.NaN;
+        Point from = pointAt(start);
+        Point to = pointAt(end);
+        if (distance(from, to) < 0.5) return Double.NaN;
+
+        double lat1 = Math.toRadians(from.lat());
+        double lat2 = Math.toRadians(to.lat());
+        double lonDelta = Math.toRadians(deltaLon(to.lon(), from.lon()));
+        double east = Math.sin(lonDelta) * Math.cos(lat2);
+        double north = Math.cos(lat1) * Math.sin(lat2) -
+            Math.sin(lat1) * Math.cos(lat2) * Math.cos(lonDelta);
+        return Math.toDegrees(Math.atan2(east, north));
+    }
+
+    private Point pointAt(double meters) {
+        int index = Arrays.binarySearch(dist, meters);
+        if (index >= 0) return points.get(index);
+        int after = -index - 1;
+        Point from = points.get(after - 1);
+        Point to = points.get(after);
+        double fraction = (meters - dist[after - 1]) / (dist[after] - dist[after - 1]);
+        double longitude = from.lon() + fraction * deltaLon(to.lon(), from.lon());
+        return new Point(from.lat() + fraction * (to.lat() - from.lat()), deltaLon(longitude, 0));
+    }
+
     public static Route parse(String gpx) throws Exception {
         if(gpx==null||!gpx.contains("<gpx"))throw new IllegalArgumentException(gpx==null?"BRouterから応答なし":gpx.substring(0,Math.min(300,gpx.length())));
         if(gpx.contains("<!DOCTYPE")||gpx.contains("<!ENTITY"))throw new IllegalArgumentException("外部エンティティ不可");
