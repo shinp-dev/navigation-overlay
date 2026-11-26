@@ -41,7 +41,7 @@ public class NavService extends Service implements LocationListener, SensorEvent
     private final float[] deviceMatrix = new float[9];
     private final float[] screenMatrix = new float[9];
     private double magneticHeading = Double.NaN;
-    private double routeBearing = Double.NaN;
+    private double destinationBearing = Double.NaN;
     private float declination;
     private long headingAt;
     private long declinationAt;
@@ -70,7 +70,7 @@ public class NavService extends Service implements LocationListener, SensorEvent
 
     private void startHeadingUpdates() {
         magneticHeading = Double.NaN;
-        routeBearing = Double.NaN;
+        destinationBearing = Double.NaN;
         headingAt = 0;
         declinationAt = 0;
         directionSector = -1;
@@ -123,7 +123,7 @@ public class NavService extends Service implements LocationListener, SensorEvent
 
     private void refreshDirection() {
         if (direction == null) return;
-        if (!Double.isFinite(routeBearing) || !isFresh(fix, MAX_FIX_AGE_NS)) {
+        if (!Double.isFinite(destinationBearing) || !isFresh(fix, MAX_FIX_AGE_NS)) {
             directionSector = -1;
             if (direction.getVisibility() != View.GONE) direction.setVisibility(View.GONE);
             return;
@@ -131,13 +131,13 @@ public class NavService extends Service implements LocationListener, SensorEvent
 
         String text;
         if (orientationSensor == null) {
-            text = "進む向き  方位センサーなし";
+            text = "目的地の向き  方位センサーなし";
         } else if (!Double.isFinite(magneticHeading) ||
             SystemClock.elapsedRealtimeNanos() - headingAt > MAX_HEADING_AGE_NS) {
-            text = "進む向き  方位を確認中";
+            text = "目的地の向き  方位を確認中";
         } else {
-            directionSector = Heading.sector(routeBearing, magneticHeading + declination, directionSector);
-            text = "進む向き  " + Heading.direction(directionSector);
+            directionSector = Heading.sector(destinationBearing, magneticHeading + declination, directionSector);
+            text = "目的地の向き  " + Heading.direction(directionSector);
         }
         if (!text.contentEquals(direction.getText())) direction.setText(text);
         if (direction.getVisibility() != View.VISIBLE) direction.setVisibility(View.VISIBLE);
@@ -229,7 +229,7 @@ public class NavService extends Service implements LocationListener, SensorEvent
     private void show(String title, String detail) { show(title, detail, Double.NaN); }
 
     private void show(String title, String detail, double bearing) {
-        routeBearing = bearing;
+        destinationBearing = bearing;
         if (primary != null) {
             primary.setText(title);
             secondary.setText(detail);
@@ -272,9 +272,19 @@ public class NavService extends Service implements LocationListener, SensorEvent
         if(remaining<18&&Route.distance(p,route.points.get(route.points.size()-1))<Math.max(15,l.getAccuracy())&&l.getAccuracy()<25){if(++arrivalCount>=3){boolean near=Route.distance(p,destination)<Math.max(25,l.getAccuracy());show(near?"到着しました":"経路の終点に到着",near?"案内を終了します":"目的地までは周囲を確認してください");vibrate();active=false;ui.postDelayed(this::stopSelf,3500);return;}}else arrivalCount=0;
         Route.Turn t=route.next(progress);double d=Math.max(0,route.at(t.index())-progress);String label=Route.label(t.code());String detail="残り "+format(remaining)+(destName==null||destName.isBlank()?"":" · "+destName);boolean far=d>45&&!t.code().equals("DEST")&&!t.code().equals("BL")&&!t.code().equals("OFFR");
         show((far ? "次の案内まで " : Route.arrow(t.code()) + " " + label + " ") + format(d),
-            far ? "次：" + label + " · " + detail : detail, route.bearingAhead(progress));
+            far ? "次：" + label + " · " + detail : detail, bearingToDestination(l));
         if(!t.code().equals("DEST")&&!t.code().equals("C")&&d<(mode==0?20:35)&&alerted!=t.index()){alerted=t.index();vibrate();}
     }
+    private double bearingToDestination(Location current) {
+        Location target = new Location("destination");
+        target.setLatitude(destination.lat());
+        target.setLongitude(destination.lon());
+        // bearingTo returns the initial true-north azimuth, matching the
+        // magnetic sensor heading after declination correction.
+        if (current.distanceTo(target) < 1f) return Double.NaN;
+        return current.bearingTo(target);
+    }
+
     private void calculate(){if(!active||calculating)return;if(!isFresh(fix,MAX_FIX_AGE_NS)){refreshLocationStatus();return;}calculating=true;lastRequest=SystemClock.elapsedRealtime();int g=++generation;Location l=fix;Route.Point dest=destination;int m=mode;show("経路探索中","BRouterでオフライン計算");worker.execute(()->{try{Route result=EmbeddedRouter.calculate(this,new Route.Point(l.getLatitude(),l.getLongitude()),dest,m);ui.post(()->{if(!active||g!=generation)return;calculating=false;failed=false;route=result;progress=0;initial=true;offCount=arrivalCount=0;alerted=-1;updateRouteForFix();});}catch(Exception e){ui.post(()->{if(!active||g!=generation)return;calculating=false;failed=true;route=null;show("経路探索に失敗（タップで再試行）","経路データの範囲を確認");Toast.makeText(this,"BRouter: "+e.getMessage(),Toast.LENGTH_LONG).show();});}});}
     private String format(double meters){return meters>=1000?String.format(java.util.Locale.JAPAN,"%.1fkm",meters/1000):Math.round(meters)+"m";}
     private void vibrate(){try{Vibrator v=getSystemService(VibratorManager.class).getDefaultVibrator();v.vibrate(VibrationEffect.createOneShot(120,VibrationEffect.DEFAULT_AMPLITUDE));}catch(Exception ignored){}}
