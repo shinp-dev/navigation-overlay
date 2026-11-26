@@ -271,8 +271,13 @@ public class NavService extends Service implements LocationListener, SensorEvent
         if(m.cross()>threshold){if(++offCount>=3&&SystemClock.elapsedRealtime()-lastRequest>15000){show("経路を再探索中","ルートから外れました");calculate();}else show("経路を確認中","GPSまたは経路のずれを確認");return;}offCount=0;initial=false;progress=Math.max(progress,m.along());double remaining=Math.max(0,route.length()-progress);
         if(remaining<18&&Route.distance(p,route.points.get(route.points.size()-1))<Math.max(15,l.getAccuracy())&&l.getAccuracy()<25){if(++arrivalCount>=3){boolean near=Route.distance(p,destination)<Math.max(25,l.getAccuracy());show(near?"到着しました":"経路の終点に到着",near?"案内を終了します":"目的地までは周囲を確認してください");vibrate();active=false;ui.postDelayed(this::stopSelf,3500);return;}}else arrivalCount=0;
         Route.Turn t=route.next(progress);double d=Math.max(0,route.at(t.index())-progress);String label=Route.label(t.code());String detail="残り "+format(remaining)+(destName==null||destName.isBlank()?"":" · "+destName);boolean far=d>45&&!t.code().equals("DEST")&&!t.code().equals("BL")&&!t.code().equals("OFFR");
-        show((far ? "次の案内まで " : Route.arrow(t.code()) + " " + label + " ") + format(d),
-            far ? "次：" + label + " · " + detail : detail, bearingToDestination(l));
+        if (t.code().equals("DEST")) {
+            // No further maneuver is reported before the route endpoint.
+            show("道なりに進む", detail, bearingToDestination(l));
+        } else {
+            show((far ? "次の案内まで " : Route.arrow(t.code()) + " " + label + " ") + format(d),
+                far ? "次：" + label + " · " + detail : detail, bearingToDestination(l));
+        }
         if(!t.code().equals("DEST")&&!t.code().equals("C")&&d<(mode==0?20:35)&&alerted!=t.index()){alerted=t.index();vibrate();}
     }
     private double bearingToDestination(Location current) {
