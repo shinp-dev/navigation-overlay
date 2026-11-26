@@ -85,8 +85,8 @@ public class MainActivity extends Activity {
     private void showNavigationHelp() {
         new AlertDialog.Builder(this)
             .setTitle("ナビのヘルプ")
-            .setMessage("「進む向き」の矢印は、BRouterが計算した経路の少し先を、スマホから見た向きで示します。\n\n"
-                + "たとえば目的地が正面にあっても、道がつながっておらず右から回り込む経路なら、矢印は右を示します。\n\n"
+            .setMessage("「目的地の向き」の矢印は、GPSの現在地から目的地への直線方向を、スマホから見た向きで示します。\n\n"
+                + "矢印は道路に沿った進行方向とは限りません。実際の経路は下の右左折案内に従ってください。\n\n"
                 + "矢印の下には、次の曲がり方や距離を表示します。現地の標識や通行状況を優先してください。")
             .setPositiveButton(android.R.string.ok, null)
             .show();
